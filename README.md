@@ -1,23 +1,41 @@
 # 🚦 Traffic Accident Severity Prediction
 
-> A complete end-to-end machine learning pipeline — from synthetic data generation, preprocessing & GridSearchCV-driven feature selection, through to multi-model evaluation using Logistic Regression and SVM.
+> A complete end-to-end machine learning pipeline — from synthetic data generation, preprocessing & GridSearchCV-driven feature selection, through to multi-model evaluation using Logistic Regression, SVM, and tree-based baselines, with Random Forest selected as the best model in Phase 3.
 
 ---
 
 ## 📁 Project Structure
 
 ```
-traffic-accident-severity/
+PBL/
 │
-├── 📓 01_data_generation.ipynb              ← Synthetic dataset creation
-├── 📓 02_preprocess_traffic_accidents.ipynb ← Preprocessing + Feature Selection
-├── 📓 03_modelling_gridsearchcv.ipynb       ← Modelling & Evaluation
+├── Phase_1/
+│   ├── 01_data_generation.ipynb              ← Synthetic dataset creation
+│   ├── 02_preprocess_traffic_accidents.ipynb ← Preprocessing + feature engineering
+│   ├── traffic_accident_dataset.csv          ← Raw synthetic dataset (~8 400 rows)
+│   ├── train_preprocessed.csv                ← Clean training split (6 400 rows)
+│   ├── test_preprocessed.csv                 ← Clean test split   (1 600 rows)
+│   ├── preprocessed.csv                      ← Full cleaned dataset
+│   ├── boxplots_after_clipping.png           ← Outlier clipping summary plot
+│   └── feature_correlation_heatmap.png       ← Feature correlation heatmap
 │
-├── 📄 traffic_accident_dataset.csv          ← Raw synthetic dataset (~8 400 rows)
-├── 📄 train_preprocessed.csv                ← Clean training split (6 400 rows)
-├── 📄 test_preprocessed.csv                 ← Clean test split   (1 600 rows)
+├── Phase_2/
+│   ├── 03_model_training.ipynb               ← Train models and find evaluation metrics
+│   └── 03_model_training.py                  ← Script export of Phase 2 training
 │
-└── 📄 README.md                             ← You are here
+├── Phase_3/
+│   ├── 04_evaluate_models.ipynb              ← Full pipeline + evaluation
+│   ├── 04_evaluate_models.py                 ← Python export of the notebook
+│   ├── predict.py                            ← CLI prediction helper
+│   ├── model_lr.pkl
+│   ├── model_svm_linear.pkl
+│   ├── model_svm_poly.pkl
+│   ├── model_svm_rbf.pkl
+│   ├── model_rf.pkl
+│   └── random_forest_model.pkl
+│
+├── requirements.txt
+└── README.md                                 ← You are here
 ```
 
 ---
@@ -38,7 +56,7 @@ Key input signals include vehicle speed, weather condition, road surface, driver
 
 ## 🗂️ Notebook 1 — Data Generation
 
-**File:** `01_data_generation.ipynb`
+**File:** `Phase_1/01_data_generation.ipynb`
 
 A synthetic dataset of **8 000 base rows** (8 400 after duplicates) is generated using NumPy and Pandas with realistic statistical relationships baked in.
 
@@ -94,7 +112,7 @@ Severe    ≈ 2 667   (33.3 %)
 
 ## 🧹 Notebook 2 — Preprocessing & Feature Selection
 
-**File:** `02_preprocess_traffic_accidents.ipynb`
+**File:** `Phase_1/02_preprocess_traffic_accidents.ipynb`
 
 A six-cell pipeline that transforms the raw dataset into model-ready splits **and** identifies the optimal feature subset via GridSearchCV.
 
@@ -182,7 +200,7 @@ GridSearchCV
 
 - **Recall vs k line chart** — with ±1 std band showing where adding features stops helping
 - **ANOVA F-score bar chart** — selected features highlighted, cutoff line shown
-- Best `k` value and CV macro recall printed; selected feature list saved for Notebook 3
+- Best `k` value and CV macro recall printed; selected feature list used in Phase 2/Phase 3 modelling
 
 **Final output of Notebook 2:**
 
@@ -190,15 +208,15 @@ GridSearchCV
 |------|------|---------|
 | `train_preprocessed.csv` | 6 400 | 21 |
 | `test_preprocessed.csv` | 1 600 | 21 |
-| `selected_features` | — | best_k columns (passed to Notebook 3) |
+| `selected_features` | — | best_k columns (used in Phase 2/Phase 3) |
 
 ---
 
-## 🤖 Notebook 3 — Modelling & Evaluation
+## 🤖 Phase 2 — Model Training & Evaluation
 
-**File:** `03_modelling_gridsearchcv.ipynb`
+**Files:** `Phase_2/03_model_training.ipynb`, `Phase_2/03_model_training.py`
 
-Imports all libraries, loads `train_preprocessed.csv` / `test_preprocessed.csv`, applies the GridSearchCV-selected feature columns, and confirms class balance.
+Loads `train_preprocessed.csv` / `test_preprocessed.csv`, runs GridSearchCV to pick the best `k`, then trains Logistic Regression and SVM (linear, polynomial, RBF). It prints classification reports (accuracy, precision, recall, F1), confusion matrices, and per-class + macro recall, then compares models by macro recall.
 
 ### Cells 3–6 — Four Models
 
@@ -210,7 +228,7 @@ LogisticRegression(solver='lbfgs', max_iter=1000, multi_class='multinomial')
 
 - Models the log-odds of each class as a weighted sum of features
 - Fast, interpretable baseline
-- Coefficient plot shows which features push predictions toward each severity class
+- Coefficients can be inspected to understand feature influence per class
 
 #### SVM — Linear Kernel
 
@@ -246,22 +264,7 @@ SVC(kernel='rbf', gamma='scale', C=1.0, decision_function_shape='ovr')
 
 ### Evaluation: Confusion Matrix + Recall
 
-Every model produces two outputs:
-
-**1. Dual Confusion Matrix**
-
-```
-Left panel  : Raw counts        Right panel : Normalised (row = recall)
-               Predicted                         Predicted
-           Minor  Mod  Severe               Minor  Mod  Severe
-Actual Min [  TP   FP   FP  ]    Actual Min [ 0.xx  ...  ...  ]
-       Mod [  FP   TP   FP  ]           Mod [ ...   0.xx ...  ]
-       Sev [  FP   FP   TP  ]           Sev [ ...   ...  0.xx ]
-```
-
-**2. Per-Class Recall Bar Chart**
-
-Shows recall for Minor, Moderate, and Severe with the macro recall line overlaid.
+Every model prints a classification report and shows a confusion matrix heatmap. Per-class recall and macro recall are also reported to keep focus on severe cases.
 
 #### Why Recall over Accuracy?
 
@@ -271,15 +274,17 @@ Shows recall for Minor, Moderate, and Severe with the macro recall line overlaid
 
 ---
 
-### Cell 7 — Model Comparison Dashboard
+### Model Comparison
 
-| Visual | Description |
-|--------|-------------|
-| Results table | Colour-coded (green = best per column) with per-class and macro recall |
-| Grouped bar chart | All 4 models × 3 classes side by side |
-| Macro recall leaderboard | Horizontal bar, models ranked worst → best |
-| Full recall heatmap | `YlGn` heatmap of model × metric matrix |
-| Kernel summary table | When to prefer each model + trade-offs |
+Outputs include a results table with per-class recall and macro recall, plus a best-model summary based on macro recall. Phase 3 extends this comparison and selects Random Forest as the best model.
+
+## 🧪 Phase 3 — Full Evaluation Notebook
+
+**Files:** `Phase_3/04_evaluate_models.ipynb`, `Phase_3/04_evaluate_models.py`
+
+Runs the full preprocessing pipeline (inspection, cleaning, outlier clipping, feature engineering, scaling), performs GridSearchCV feature selection, and evaluates a wider set of models. The notebook adds tree-based baselines (Random Forest, Decision Tree) and selects the best model based on macro recall. In this project, Random Forest is the best performer.
+
+**Prediction CLI:** `Phase_3/predict.py` loads saved model files and expects `selected_features.json` generated by the training steps for interactive predictions (single model or majority vote).
 
 ---
 
@@ -295,10 +300,10 @@ seaborn      >= 0.12
 jupyter      >= 1.0
 ```
 
-Install all dependencies:
+Install dependencies from the pinned list:
 
 ```bash
-pip install pandas numpy scikit-learn matplotlib seaborn jupyter
+pip install -r requirements.txt
 ```
 
 ---
@@ -306,36 +311,41 @@ pip install pandas numpy scikit-learn matplotlib seaborn jupyter
 ## 🚀 How to Run
 
 ```bash
-# 1. Clone or download the project folder
-cd traffic-accident-severity/
+# 1. Install dependencies
+pip install -r requirements.txt
 
-# 2. Launch Jupyter
+# 2. Launch Jupyter (for notebooks)
 jupyter notebook
 
-# 3. Run notebooks in order:
-#    01_data_generation.ipynb              → produces traffic_accident_dataset.csv
-#    02_preprocess_traffic_accidents.ipynb → produces train/test_preprocessed.csv + selected features
-#    03_modelling_gridsearchcv.ipynb       → produces model results + plots
+# 3. Run notebooks in order (Phase_1):
+#    Phase_1/01_data_generation.ipynb              → produces traffic_accident_dataset.csv
+#    Phase_1/02_preprocess_traffic_accidents.ipynb → produces train/test_preprocessed.csv
 
-# Or run all at once from the command line:
-jupyter nbconvert --to notebook --execute 01_data_generation.ipynb
-jupyter nbconvert --to notebook --execute 02_preprocess_traffic_accidents.ipynb
-jupyter nbconvert --to notebook --execute 03_modelling_gridsearchcv.ipynb
+# 4. Model evaluation options:
+#    Phase_2/03_model_training.ipynb               → Train models and find evaluation metrics
+#    Phase_2/03_model_training.py                  → Script export of Phase 2 training
+#    Phase_3/04_evaluate_models.ipynb              → Full pipeline + evaluation
+#    Phase_3/04_evaluate_models.py                 → Python export of the notebook
+
+# 5. Prediction CLI (from Phase_3):
+#    python predict.py
 ```
+
+Note: Phase_2 and Phase_3 scripts/notebooks read CSVs using relative paths. Run them with the working directory set to Phase_1, or update the paths in the scripts to point at Phase_1/.
 
 ---
 
 ## 🔄 Full Pipeline at a Glance
 
 ```
-01_data_generation.ipynb
+Phase_1/01_data_generation.ipynb
   │
   │  8 000 rows · 26 columns · balanced 3-class target
   │  + 10 % nulls · 5 % duplicates · categorical inconsistencies · 4 noise cols
   ▼
-traffic_accident_dataset.csv
+Phase_1/traffic_accident_dataset.csv
   │
-02_preprocess_traffic_accidents.ipynb
+Phase_1/02_preprocess_traffic_accidents.ipynb
   │
   ├─ Cell 1 : Inspect        — dtypes · null audit · descriptive stats
   ├─ Cell 2 : Clean          — dedup · standardise categories · median/mode impute
@@ -349,10 +359,10 @@ traffic_accident_dataset.csv
                                → best_k features identified
   │
   ▼
-train_preprocessed.csv (6 400 × 21)   test_preprocessed.csv (1 600 × 21)
+Phase_1/train_preprocessed.csv (6 400 × 21)   Phase_1/test_preprocessed.csv (1 600 × 21)
 + selected_features list (best_k columns)
   │
-03_modelling_gridsearchcv.ipynb
+Phase_2/03_model_training.ipynb
   │
   ├─ Cell 1–2 : Setup & Load  — apply selected feature columns to train/test
   ├─ Cell 3   : Logistic Regression      → Confusion Matrix + Recall
@@ -360,11 +370,13 @@ train_preprocessed.csv (6 400 × 21)   test_preprocessed.csv (1 600 × 21)
   ├─ Cell 5   : SVM — Polynomial kernel  → Confusion Matrix + Recall
   ├─ Cell 6   : SVM — RBF kernel         → Confusion Matrix + Recall
   │
-  └─ Cell 7   : Comparison Dashboard
-                 ├─ Results table (colour-coded)
-                 ├─ Grouped bar chart
-                 ├─ Macro recall leaderboard
-                 └─ Recall heatmap
+  └─ Cell 7   : Model comparison table + best macro recall
+  │
+Phase_3/04_evaluate_models.ipynb
+  │
+  ├─ Full preprocessing + feature selection
+  ├─ Extra models: Random Forest, Decision Tree
+  └─ Best model: Random Forest (macro recall)
 ```
 
 ---
